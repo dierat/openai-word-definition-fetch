@@ -1,0 +1,1 @@
+# openai-word-definition-fetch
