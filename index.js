@@ -1,10 +1,25 @@
 // TODO: replace with OpenAI key https://platform.openai.com/account/api-keys
 const API_KEY = 'fake-key';
 
-// NOTE: the list only has 3 words to avoid rate limiting while testing
-const words = ['vitriolic', 'vituperation', 'vivacious'];
+const fullList = [
+  'abase',
+  'abash',
+  'abate',
+  'abdicate',
+  'abecedarian',
+  'aberrant',
+  'aberration',
+  'abet',
+  'abeyance',
+  'abhorrent',
+];
+
+let listIndex = 3;
 
 const finalWordData = [];
+// Ideally we would have some logic that would automatically run these again,
+// but for now we'll just track them and manually rerun them.
+const missedWords = [];
 
 function fetchDataForWord(word) {
   return new Promise((resolve) => {
@@ -29,12 +44,17 @@ function fetchDataForWord(word) {
         messages: [{ role: 'user', content }],
       }),
     })
-      .then((data) => data.json())
+      .then((data) => {
+        if (!data.ok) {
+          missedWords.push(word);
+        }
+        return data.json();
+      })
       .then((data) => resolve(data));
   });
 }
 
-function fetchDataForList() {
+function fetchDataForList(words) {
   let wordRequests = [];
 
   words.forEach((word) => {
@@ -48,14 +68,38 @@ function fetchDataForList() {
       if ('error' in wordData) {
         console.log(`\nerror: ${wordData.error.message}\n`);
       } else {
-        finalWordData.push(
-          JSON.parse(wordData.choices[0].message.content)
-        );
+        try {
+          finalWordData.push(
+            JSON.parse(wordData.choices[0].message.content)
+          );
+        } catch (error) {
+          finalWordData.push(wordData.choices[0].message.content);
+        }
       }
     });
 
-    console.log(JSON.stringify(finalWordData, null, 2));
+    try {
+      console.log(JSON.stringify(finalWordData, null, 2));
+    } catch (error) {
+      console.log(
+        'missed words (you need to run these again): ',
+        missedWords
+      );
+      console.log(finalWordData);
+    }
   });
 }
 
-fetchDataForList();
+// Kick off one fetch right away
+fetchDataForList(fullList.slice(0, 3));
+
+// Set up recurring fetches, 3 every 90 seconds, moving down the list by 3 each fetch.
+// This recurring feature is necessary because the API rate limits you to 3 calls per minute.
+const timerId = setInterval(async () => {
+  await fetchDataForList(fullList.slice(listIndex, listIndex + 3));
+  listIndex += 3;
+
+  if (listIndex >= fullList.length) {
+    window.clearTimeout(timerId);
+  }
+}, 90000);
